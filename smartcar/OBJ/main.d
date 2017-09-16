@@ -40,3 +40,4 @@
 ..\obj\main.o: D:\MDK5\setup\Keil_v5\ARM\ARMCC\Bin\..\include\stdio.h
 ..\obj\main.o: ..\HARDWARE\LED\led.h
 ..\obj\main.o: ..\HARDWARE\PWM\pwm.h
+..\obj\main.o: ..\HARDWARE\sccb\bsp_sccb.h
