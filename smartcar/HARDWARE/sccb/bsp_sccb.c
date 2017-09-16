@@ -1,299 +1,198 @@
 #include "bsp_sccb.h"
  
-#define DEV_ADR  ADDR_OV7725 			 /*设备地址定义*/
+#define DEV_ADR  0x42 			 /*设备地址定义*/
 
-/********************************************************************
- * 函数名：SCCB_Configuration
- * 描述  ：SCCB管脚配置
- * 输入  ：无
- * 输出  ：无
- * 注意  ：无        
- ********************************************************************/
-void SCCB_GPIO_Config(void)
+void SCCB_HW_Init(void)
 {
-  GPIO_InitTypeDef  GPIO_InitStructure; 
+	  GPIO_InitTypeDef GPIO_InitStructure;
+	  I2C_InitTypeDef  I2C_InitStruct;
 	
-	
-  /* SCL(PC6)、SDA(PC7)管脚配置 */
-	macOV7725_SIO_C_SCK_APBxClock_FUN ( macOV7725_SIO_C_GPIO_CLK, ENABLE );
-  GPIO_InitStructure.GPIO_Pin =  macOV7725_SIO_C_GPIO_PIN ;
-	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_OUT;
-	GPIO_InitStructure.GPIO_OType = GPIO_OType_OD;
-	GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_UP;
-  GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
-  GPIO_Init(macOV7725_SIO_C_GPIO_PORT, &GPIO_InitStructure);
-	
-	macOV7725_SIO_D_SCK_APBxClock_FUN ( macOV7725_SIO_D_GPIO_CLK, ENABLE );
-  GPIO_InitStructure.GPIO_Pin =  macOV7725_SIO_D_GPIO_PIN ;
-  GPIO_Init(macOV7725_SIO_D_GPIO_PORT, &GPIO_InitStructure);
+	 /****** 配置I2C，使用I2C与摄像头的SCCB接口通讯*****/
+	 /* 使能I2C时钟 */
+	  RCC_APB1PeriphClockCmd(CAMERA_I2C_CLK, ENABLE);
+	  /* 使能I2C使用的GPIO时钟 */
+	  RCC_AHB1PeriphClockCmd(CAMERA_I2C_SCL_GPIO_CLK|CAMERA_I2C_SDA_GPIO_CLK, ENABLE);
+	  /* 配置引脚源 */
+	  GPIO_PinAFConfig(CAMERA_I2C_SCL_GPIO_PORT, CAMERA_I2C_SCL_SOURCE, CAMERA_I2C_SCL_AF);
+	  GPIO_PinAFConfig(CAMERA_I2C_SDA_GPIO_PORT, CAMERA_I2C_SDA_SOURCE, CAMERA_I2C_SDA_AF);
+
+	  /* 初始化GPIO */
+	  GPIO_InitStructure.GPIO_Pin = CAMERA_I2C_SCL_PIN ;
+	  GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF;
+	  GPIO_InitStructure.GPIO_Speed = GPIO_Speed_2MHz;
+	  GPIO_InitStructure.GPIO_OType = GPIO_OType_OD;
+	  GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_NOPULL;
+	  GPIO_Init(CAMERA_I2C_SCL_GPIO_PORT, &GPIO_InitStructure);
+	  GPIO_PinAFConfig(CAMERA_I2C_SCL_GPIO_PORT, CAMERA_I2C_SCL_SOURCE, CAMERA_I2C_SCL_AF);
+
+	  GPIO_InitStructure.GPIO_Pin = CAMERA_I2C_SDA_PIN ;
+	  GPIO_Init(CAMERA_I2C_SDA_GPIO_PORT, &GPIO_InitStructure);
+
+	  /*初始化I2C模式 */
+	  I2C_DeInit(CAMERA_I2C); 
+
+	  I2C_InitStruct.I2C_Mode = I2C_Mode_I2C;
+	  I2C_InitStruct.I2C_DutyCycle = I2C_DutyCycle_2;
+	  I2C_InitStruct.I2C_OwnAddress1 = 0xFE;
+	  I2C_InitStruct.I2C_Ack = I2C_Ack_Enable;
+	  I2C_InitStruct.I2C_AcknowledgedAddress = I2C_AcknowledgedAddress_7bit;
+	  I2C_InitStruct.I2C_ClockSpeed = 40000;
+
+	  /* 写入配置 */
+	  I2C_Init(CAMERA_I2C, &I2C_InitStruct);
+		
+		 /* 使能I2C */
+	  I2C_Cmd(CAMERA_I2C, ENABLE);
 	
 }
 
-/********************************************************************
- * 函数名：SCCB_delay
- * 描述  ：延迟时间
- * 输入  ：无
- * 输出  ：无
- * 注意  ：内部调用        
- ********************************************************************/
-//static void SCCB_delay(void)
-//{	
-//   uint16_t i = 800; 
-//   while(i) 
-//   { 
-//     i--; 
-//   } 
-//}
-
-/********************************************************************
- * 函数名：SCCB_Start
- * 描述  ：SCCB起始信号
- * 输入  ：无
- * 输出  ：无
- * 注意  ：内部调用        
- ********************************************************************/
-static int SCCB_Start(void)
+/**
+  * @brief  写一字节数据到OV2640寄存器
+  * @param  Addr: OV2640 的寄存器地址
+  * @param  Data: 要写入的数据
+  * @retval 返回0表示写入正常，0xFF表示错误
+  */
+uint8_t SCCB_WriteReg(uint16_t Addr, uint8_t Data)
 {
-	SDA_H;
-	SCL_H;
-	delay_us(50);
-	if(!SDA_read)
-	return DISABLE;	/* SDA线为低电平则总线忙,退出 */
-	SDA_L;
-	delay_us(50);
-	if(SDA_read) 
-	return DISABLE;	/* SDA线为高电平则总线出错,退出 */
-	SDA_L;
-	delay_us(50);
-	return ENABLE;
+  uint32_t timeout = DCMI_TIMEOUT_MAX;
+  
+  /* Generate the Start Condition */
+  I2C_GenerateSTART(CAMERA_I2C, ENABLE);
+
+  /* Test on CAMERA_I2C EV5 and clear it */
+  timeout = DCMI_TIMEOUT_MAX; /* Initialize timeout value */
+  while(!I2C_CheckEvent(CAMERA_I2C, I2C_EVENT_MASTER_MODE_SELECT))
+  {
+    /* If the timeout delay is exeeded, exit with error code */
+    if ((timeout--) == 0) return 0xFF;
+  }
+   
+  /* Send DCMI selcted device slave Address for write */
+  I2C_Send7bitAddress(CAMERA_I2C, DEV_ADR, I2C_Direction_Transmitter);
+ 
+  /* Test on CAMERA_I2C EV6 and clear it */
+  timeout = DCMI_TIMEOUT_MAX; /* Initialize timeout value */
+  while(!I2C_CheckEvent(CAMERA_I2C, I2C_EVENT_MASTER_TRANSMITTER_MODE_SELECTED))
+  {
+    /* If the timeout delay is exeeded, exit with error code */
+    if ((timeout--) == 0) return 0xFF;
+  }
+ 
+  /* Send CAMERA_I2C location address LSB */
+  I2C_SendData(CAMERA_I2C, (uint8_t)(Addr));
+
+  /* Test on CAMERA_I2C EV8 and clear it */
+  timeout = DCMI_TIMEOUT_MAX; /* Initialize timeout value */
+  while(!I2C_CheckEvent(CAMERA_I2C, I2C_EVENT_MASTER_BYTE_TRANSMITTED))
+  {
+    /* If the timeout delay is exeeded, exit with error code */
+    if ((timeout--) == 0) return 0xFF;
+  }
+  
+  /* Send Data */
+  I2C_SendData(CAMERA_I2C, Data);
+
+  /* Test on CAMERA_I2C EV8 and clear it */
+  timeout = DCMI_TIMEOUT_MAX; /* Initialize timeout value */
+  while(!I2C_CheckEvent(CAMERA_I2C, I2C_EVENT_MASTER_BYTE_TRANSMITTED))
+  {
+    /* If the timeout delay is exeeded, exit with error code */
+    if ((timeout--) == 0) return 0xFF;
+  }  
+ 
+  /* Send CAMERA_I2C STOP Condition */
+  I2C_GenerateSTOP(CAMERA_I2C, ENABLE);
+  
+  /* If operation is OK, return 0 */
+  return 0;
 }
 
-
-
-/********************************************************************
- * 函数名：SCCB_Stop
- * 描述  ：SCCB停止信号
- * 输入  ：无
- * 输出  ：无
- * 注意  ：内部调用        
- ********************************************************************/
-static void SCCB_Stop(void)
+/**
+  * @brief  从OV2640寄存器中读取一个字节的数据
+  * @param  Addr: 寄存器地址
+  * @retval 返回读取得的数据
+  */
+uint8_t SCCB_ReadReg(uint16_t Addr)
 {
-	SCL_L;
-	delay_us(50);
-	SDA_L;
-	delay_us(50);
-	SCL_H;
-	delay_us(50);
-	SDA_H;
-	delay_us(50);
-}
+  uint32_t timeout = DCMI_TIMEOUT_MAX;
+  uint8_t Data = 0;
 
+  /* Generate the Start Condition */
+  I2C_GenerateSTART(CAMERA_I2C, ENABLE);
 
+  /* Test on CAMERA_I2C EV5 and clear it */
+  timeout = DCMI_TIMEOUT_MAX; /* Initialize timeout value */
+  while(!I2C_CheckEvent(CAMERA_I2C, I2C_EVENT_MASTER_MODE_SELECT))
+  {
+    /* If the timeout delay is exeeded, exit with error code */
+    if ((timeout--) == 0) return 0xFF;
+  } 
+  
+  /* Send DCMI selcted device slave Address for write */
+  I2C_Send7bitAddress(CAMERA_I2C,DEV_ADR, I2C_Direction_Transmitter);
+ 
+  /* Test on CAMERA_I2C EV6 and clear it */
+  timeout = DCMI_TIMEOUT_MAX; /* Initialize timeout value */
+  while(!I2C_CheckEvent(CAMERA_I2C, I2C_EVENT_MASTER_TRANSMITTER_MODE_SELECTED))
+  {
+    /* If the timeout delay is exeeded, exit with error code */
+    if ((timeout--) == 0) return 0xFF;
+  } 
 
-/********************************************************************
- * 函数名：SCCB_Ack
- * 描述  ：SCCB应答方式
- * 输入  ：无
- * 输出  ：无
- * 注意  ：内部调用        
- ********************************************************************/
-static void SCCB_Ack(void)
-{	
-	SCL_L;
-	delay_us(50);
-	SDA_L;
-	delay_us(50);
-	SCL_H;
-	delay_us(50);
-	SCL_L;
-	delay_us(50);
-}
+  /* Send CAMERA_I2C location address LSB */
+  I2C_SendData(CAMERA_I2C, (uint8_t)(Addr));
 
+  /* Test on CAMERA_I2C EV8 and clear it */
+  timeout = DCMI_TIMEOUT_MAX; /* Initialize timeout value */
+  while(!I2C_CheckEvent(CAMERA_I2C, I2C_EVENT_MASTER_BYTE_TRANSMITTED))
+  {
+    /* If the timeout delay is exeeded, exit with error code */
+    if ((timeout--) == 0) return 0xFF;
+  } 
+  
+  /* Clear AF flag if arised */
+  CAMERA_I2C->SR1 |= (uint16_t)0x0400;
 
+  /* Generate the Start Condition */
+  I2C_GenerateSTART(CAMERA_I2C, ENABLE);
+  
+  /* Test on CAMERA_I2C EV6 and clear it */
+  timeout = DCMI_TIMEOUT_MAX; /* Initialize timeout value */
+  while(!I2C_CheckEvent(CAMERA_I2C, I2C_EVENT_MASTER_MODE_SELECT))
+  {
+    /* If the timeout delay is exeeded, exit with error code */
+    if ((timeout--) == 0) return 0xFF;
+  } 
+  
+  /* Send DCMI selcted device slave Address for write */
+  I2C_Send7bitAddress(CAMERA_I2C, DEV_ADR+1, I2C_Direction_Transmitter);
+   
+  /* Test on CAMERA_I2C EV6 and clear it */
+  timeout = DCMI_TIMEOUT_MAX; /* Initialize timeout value */
+  while(!I2C_CheckEvent(CAMERA_I2C, I2C_EVENT_MASTER_RECEIVER_MODE_SELECTED))
+  {
+    /* If the timeout delay is exeeded, exit with error code */
+    if ((timeout--) == 0) return 0xFF;
+  }  
+ 
+  /* Prepare an NACK for the next data received */
+  I2C_AcknowledgeConfig(CAMERA_I2C, DISABLE);
 
-/********************************************************************
- * 函数名：SCCB_NoAck
- * 描述  ：SCCB 无应答方式
- * 输入  ：无
- * 输出  ：无
- * 注意  ：内部调用        
- ********************************************************************/
-static void SCCB_NoAck(void)
-{	
-	SCL_L;
-	delay_us(50);
-	SDA_H;
-	delay_us(50);
-	SCL_H;
-	delay_us(50);
-	SCL_L;
-	delay_us(50);
-}
+  /* Test on CAMERA_I2C EV7 and clear it */
+  timeout = DCMI_TIMEOUT_MAX; /* Initialize timeout value */
+  while(!I2C_CheckEvent(CAMERA_I2C, I2C_EVENT_MASTER_BYTE_RECEIVED))
+  {
+    /* If the timeout delay is exeeded, exit with error code */
+    if ((timeout--) == 0) return 0xFF;
+  }   
+    
+  /* Prepare Stop after receiving data */
+  I2C_GenerateSTOP(CAMERA_I2C, ENABLE);
 
-/********************************************************************
- * 函数名：SCCB_WaitAck
- * 描述  ：SCCB 等待应答
- * 输入  ：无
- * 输出  ：返回为:=1有ACK,=0无ACK
- * 注意  ：内部调用        
- ********************************************************************/
-static int SCCB_WaitAck(void) 	
-{
-	SCL_L;
-	delay_us(50);
-	SDA_H;			
-	delay_us(50);
-	SCL_H;
-	delay_us(50);
-	if(SDA_read)
-	{
-      SCL_L;
-      return DISABLE;
-	}
-	SCL_L;
-	return ENABLE;
-}
+  /* Receive the Data */
+  Data = I2C_ReceiveData(CAMERA_I2C);
 
-
-
- /*******************************************************************
- * 函数名：SCCB_SendByte
- * 描述  ：数据从高位到低位
- * 输入  ：SendByte: 发送的数据
- * 输出  ：无
- * 注意  ：内部调用        
- *********************************************************************/
-static void SCCB_SendByte(uint8_t SendByte) 
-{
-    uint8_t i=8;
-    while(i--)
-    {
-        SCL_L;
-        delay_us(50);
-      if(SendByte&0x80)
-        SDA_H;  
-      else 
-        SDA_L;   
-        SendByte<<=1;
-        delay_us(50);
-		SCL_H;
-        delay_us(50);
-    }
-    SCL_L;
-}
-
-
-
-
- /******************************************************************
- * 函数名：SCCB_ReceiveByte
- * 描述  ：数据从高位到低位
- * 输入  ：无
- * 输出  ：SCCB总线返回的数据
- * 注意  ：内部调用        
- *******************************************************************/
-static int SCCB_ReceiveByte(void)  
-{ 
-    uint8_t i=8;
-    uint8_t ReceiveByte=0;
-
-    SDA_H;				
-    while(i--)
-    {
-      ReceiveByte<<=1;      
-      SCL_L;
-      delay_us(50);
-	  SCL_H;
-      delay_us(50);	
-      if(SDA_read)
-      {
-        ReceiveByte|=0x01;
-      }
-    }
-    SCL_L;
-    return ReceiveByte;
-}
-
-
-
-
-
- /*****************************************************************************************
- * 函数名：SCCB_WriteByte
- * 描述  ：写一字节数据
- * 输入  ：- WriteAddress: 待写入地址 	- SendByte: 待写入数据	- DeviceAddress: 器件类型
- * 输出  ：返回为:=1成功写入,=0失败
- * 注意  ：无        
- *****************************************************************************************/           
-int SCCB_WriteByte( uint16_t WriteAddress , uint8_t SendByte )
-{		
-    if(!SCCB_Start())
-	{
-	    return DISABLE;
-	}
-    SCCB_SendByte( DEV_ADR );                    /* 器件地址 */
-    if( !SCCB_WaitAck() )
-	{
-		SCCB_Stop(); 
-		return DISABLE;
-	}
-    SCCB_SendByte((uint8_t)(WriteAddress & 0x00FF));   /* 设置低起始地址 */      
-    SCCB_WaitAck();	
-    SCCB_SendByte(SendByte);
-    SCCB_WaitAck();   
-    SCCB_Stop(); 
-    return ENABLE;
-}
-
-/******************************************************************************************************************
- * 函数名：SCCB_ReadByte
- * 描述  ：读取一串数据
- * 输入  ：- pBuffer: 存放读出数据 	- length: 待读出长度	- ReadAddress: 待读出地址		 - DeviceAddress: 器件类型
- * 输出  ：返回为:=1成功读入,=0失败
- * 注意  ：无        
- **********************************************************************************************************************/           
-int SCCB_ReadByte(uint8_t* pBuffer, uint16_t length, uint8_t ReadAddress)
-{	
-    if(!SCCB_Start())
-	{
-	    return DISABLE;
-	}
-    SCCB_SendByte( DEV_ADR );         /* 器件地址 */
-    if( !SCCB_WaitAck() )
-	{
-		SCCB_Stop(); 
-		return DISABLE;
-	}
-    SCCB_SendByte( ReadAddress );     /* 设置低起始地址 */      
-    SCCB_WaitAck();	
-    SCCB_Stop(); 
-	
-    if(!SCCB_Start())
-	{
-		return DISABLE;
-	}
-    SCCB_SendByte( DEV_ADR + 1 );     /* 器件地址 */ 
-    if(!SCCB_WaitAck())
-	{
-		SCCB_Stop(); 
-		return DISABLE;
-	}
-    while(length)
-    {
-      *pBuffer = SCCB_ReceiveByte();
-      if(length == 1)
-	  {
-		  SCCB_NoAck();
-	  }
-      else
-	  {
-		SCCB_Ack(); 
-	  }
-      pBuffer++;
-      length--;
-    }
-    SCCB_Stop();
-    return ENABLE;
+  /* return the read data */
+  return Data;
 }
 /*********************************************END OF FILE**********************/

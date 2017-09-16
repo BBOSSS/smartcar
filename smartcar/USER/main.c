@@ -5,7 +5,7 @@
 #include "pwm.h"
 #include "bsp_sccb.h"
 
-u8 adr1 = 0x12;
+u8 adr1 = 0x01;
 u8 val1 = 0;
 int main(void)
 { 
@@ -16,14 +16,13 @@ int main(void)
 	delay_init(168);  //初始化延时函数
 	uart_init(115200);//初始化串口波特率为115200
  	TIM14_PWM_Init(500-1,84-1);	//84M/84=1Mhz的计数频率,重装载值500，所以PWM频率为 1M/500=2Khz.  
-  SCCB_GPIO_Config();
+  SCCB_HW_Init();
 	printf("Test\n\n");
+	val1 = SCCB_ReadReg(adr1);
+	printf("val = 0x%x\n\n",val1);
 	while(1)
 	{
-		SCCB_ReadByte( &val1, 1, adr1);
-		printf("reg_adr = 0x%x\n\n",adr1);
-		printf("reg_val = 0x%x\n\n",val1);
-		delay_ms(1000);
+			
 	}
 	
 	
