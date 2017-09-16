@@ -4,6 +4,8 @@
 "..\obj\system_stm32f4xx.o"
 "..\obj\led.o"
 "..\obj\pwm.o"
+"..\obj\bsp_ov7725.o"
+"..\obj\bsp_sccb.o"
 "..\obj\delay.o"
 "..\obj\sys.o"
 "..\obj\usart.o"

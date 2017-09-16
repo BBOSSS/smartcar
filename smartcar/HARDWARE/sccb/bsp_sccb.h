@@ -3,18 +3,20 @@
 
 
 
-#include "stm32f10x.h"
+#include "sys.h"
+#include "delay.h"
+#include "usart.h"
 
 
 
 /************************** OV7725 连接引脚定义********************************/
-#define      macOV7725_SIO_C_SCK_APBxClock_FUN              RCC_APB2PeriphClockCmd
-#define      macOV7725_SIO_C_GPIO_CLK                       RCC_APB2Periph_GPIOC
+#define      macOV7725_SIO_C_SCK_APBxClock_FUN              RCC_APB1PeriphClockCmd
+#define      macOV7725_SIO_C_GPIO_CLK                       RCC_AHB1Periph_GPIOC
 #define      macOV7725_SIO_C_GPIO_PORT                      GPIOC
 #define      macOV7725_SIO_C_GPIO_PIN                       GPIO_Pin_6
 
-#define      macOV7725_SIO_D_SCK_APBxClock_FUN              RCC_APB2PeriphClockCmd
-#define      macOV7725_SIO_D_GPIO_CLK                       RCC_APB2Periph_GPIOC
+#define      macOV7725_SIO_D_SCK_APBxClock_FUN              RCC_APB1PeriphClockCmd
+#define      macOV7725_SIO_D_GPIO_CLK                       RCC_AHB1Periph_GPIOC
 #define      macOV7725_SIO_D_GPIO_PORT                      GPIOC
 #define      macOV7725_SIO_D_GPIO_PIN                       GPIO_Pin_7
 
@@ -30,7 +32,6 @@
 #define SDA_read      GPIO_ReadInputDataBit(macOV7725_SIO_D_GPIO_PORT , macOV7725_SIO_D_GPIO_PIN) 
 
 #define ADDR_OV7725   0x42
-
 
 
 void SCCB_GPIO_Config(void);

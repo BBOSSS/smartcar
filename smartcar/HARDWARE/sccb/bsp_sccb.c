@@ -1,5 +1,5 @@
 #include "bsp_sccb.h"
-
+ 
 #define DEV_ADR  ADDR_OV7725 			 /*设备地址定义*/
 
 /********************************************************************
@@ -17,8 +17,10 @@ void SCCB_GPIO_Config(void)
   /* SCL(PC6)、SDA(PC7)管脚配置 */
 	macOV7725_SIO_C_SCK_APBxClock_FUN ( macOV7725_SIO_C_GPIO_CLK, ENABLE );
   GPIO_InitStructure.GPIO_Pin =  macOV7725_SIO_C_GPIO_PIN ;
+	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_OUT;
+	GPIO_InitStructure.GPIO_OType = GPIO_OType_OD;
+	GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_UP;
   GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
-  GPIO_InitStructure.GPIO_Mode = GPIO_Mode_Out_OD;  
   GPIO_Init(macOV7725_SIO_C_GPIO_PORT, &GPIO_InitStructure);
 	
 	macOV7725_SIO_D_SCK_APBxClock_FUN ( macOV7725_SIO_D_GPIO_CLK, ENABLE );
@@ -34,14 +36,14 @@ void SCCB_GPIO_Config(void)
  * 输出  ：无
  * 注意  ：内部调用        
  ********************************************************************/
-static void SCCB_delay(void)
-{	
-   uint16_t i = 400; 
-   while(i) 
-   { 
-     i--; 
-   } 
-}
+//static void SCCB_delay(void)
+//{	
+//   uint16_t i = 800; 
+//   while(i) 
+//   { 
+//     i--; 
+//   } 
+//}
 
 /********************************************************************
  * 函数名：SCCB_Start
@@ -54,15 +56,15 @@ static int SCCB_Start(void)
 {
 	SDA_H;
 	SCL_H;
-	SCCB_delay();
+	delay_us(50);
 	if(!SDA_read)
 	return DISABLE;	/* SDA线为低电平则总线忙,退出 */
 	SDA_L;
-	SCCB_delay();
+	delay_us(50);
 	if(SDA_read) 
 	return DISABLE;	/* SDA线为高电平则总线出错,退出 */
 	SDA_L;
-	SCCB_delay();
+	delay_us(50);
 	return ENABLE;
 }
 
@@ -78,13 +80,13 @@ static int SCCB_Start(void)
 static void SCCB_Stop(void)
 {
 	SCL_L;
-	SCCB_delay();
+	delay_us(50);
 	SDA_L;
-	SCCB_delay();
+	delay_us(50);
 	SCL_H;
-	SCCB_delay();
+	delay_us(50);
 	SDA_H;
-	SCCB_delay();
+	delay_us(50);
 }
 
 
@@ -99,13 +101,13 @@ static void SCCB_Stop(void)
 static void SCCB_Ack(void)
 {	
 	SCL_L;
-	SCCB_delay();
+	delay_us(50);
 	SDA_L;
-	SCCB_delay();
+	delay_us(50);
 	SCL_H;
-	SCCB_delay();
+	delay_us(50);
 	SCL_L;
-	SCCB_delay();
+	delay_us(50);
 }
 
 
@@ -120,13 +122,13 @@ static void SCCB_Ack(void)
 static void SCCB_NoAck(void)
 {	
 	SCL_L;
-	SCCB_delay();
+	delay_us(50);
 	SDA_H;
-	SCCB_delay();
+	delay_us(50);
 	SCL_H;
-	SCCB_delay();
+	delay_us(50);
 	SCL_L;
-	SCCB_delay();
+	delay_us(50);
 }
 
 /********************************************************************
@@ -139,11 +141,11 @@ static void SCCB_NoAck(void)
 static int SCCB_WaitAck(void) 	
 {
 	SCL_L;
-	SCCB_delay();
+	delay_us(50);
 	SDA_H;			
-	SCCB_delay();
+	delay_us(50);
 	SCL_H;
-	SCCB_delay();
+	delay_us(50);
 	if(SDA_read)
 	{
       SCL_L;
@@ -168,15 +170,15 @@ static void SCCB_SendByte(uint8_t SendByte)
     while(i--)
     {
         SCL_L;
-        SCCB_delay();
+        delay_us(50);
       if(SendByte&0x80)
         SDA_H;  
       else 
         SDA_L;   
         SendByte<<=1;
-        SCCB_delay();
+        delay_us(50);
 		SCL_H;
-        SCCB_delay();
+        delay_us(50);
     }
     SCL_L;
 }
@@ -201,9 +203,9 @@ static int SCCB_ReceiveByte(void)
     {
       ReceiveByte<<=1;      
       SCL_L;
-      SCCB_delay();
+      delay_us(50);
 	  SCL_H;
-      SCCB_delay();	
+      delay_us(50);	
       if(SDA_read)
       {
         ReceiveByte|=0x01;
